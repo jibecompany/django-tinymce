@@ -75,6 +75,11 @@ class TinyMCE(forms.Textarea):
                js_functions[k] = mce_config[k]
                del mce_config[k]
         mce_json = simplejson.dumps(mce_config)
+
+        in_inline = '__prefix__' in final_attrs['id']
+        if in_inline:
+            mce_json = mce_json.replace(u'"%s"' % final_attrs['id'], u'elements')
+
         for k in js_functions:
             index = mce_json.rfind('}')
             mce_json = mce_json[:index]+', '+k+':'+js_functions[k].strip()+mce_json[index:]
@@ -90,7 +95,31 @@ class TinyMCE(forms.Textarea):
             }
             compressor_json = simplejson.dumps(compressor_config)
             html.append(u'<script type="text/javascript">tinyMCE_GZ.init(%s)</script>' % compressor_json)
-        html.append(u'<script type="text/javascript">tinyMCE.init(%s)</script>' % mce_json)
+
+        if in_inline:
+            html.append(u'''<script type="text/javascript">
+                setTimeout(function () {
+                    var id = '%s';
+
+                    if (typeof(window._tinymce_inited) == 'undefined') {
+                        window._tinymce_inited = [];
+                    }
+
+                    if (typeof(window._tinymce_inited[id]) == 'undefined') {
+                        window._tinymce_inited[id] = true;
+                    } else {
+                        var elements = id.replace(/__prefix__/,
+                            parseInt(document.getElementById('%sTOTAL_FORMS').value) - 1);
+                        console.log(elements);
+                        if (document.getElementById(elements)) {
+                            tinymce.init(%s);
+                        }
+                    }
+                }, 0);
+            </script>''' % (final_attrs['id'],
+                final_attrs['id'].split('__prefix__')[0], mce_json))
+        else:
+            html.append(u'<script type="text/javascript">tinyMCE.init(%s)</script>' % mce_json)
 
         return mark_safe(u'\n'.join(html))
 
